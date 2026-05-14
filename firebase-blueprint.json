@@ -1,0 +1,113 @@
+{
+  "entities": {
+    "BusinessGoal": {
+      "title": "Business Goal",
+      "description": "High-level strategic objective for the autonomous company",
+      "type": "object",
+      "properties": {
+        "description": {
+          "type": "string",
+          "description": "Text description of the goal"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["ACTIVE", "ACHIEVED", "FAILED"],
+          "description": "Current status of the goal"
+        },
+        "createdAt": {
+          "type": "number",
+          "description": "Timestamp of creation"
+        },
+        "createdBy": {
+          "type": "string",
+          "description": "UID of the user who initiated this goal"
+        },
+        "kpis": {
+          "type": "array",
+          "description": "Calculated key performance indicators"
+        }
+      },
+      "required": ["description", "status", "createdAt"]
+    },
+    "Task": {
+      "title": "Task",
+      "description": "An actionable step assigned to a specific AI agent",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "Short title of the task"
+        },
+        "description": {
+          "type": "string",
+          "description": "Detailed instructions for the agent"
+        },
+        "assignedTo": {
+          "type": "string",
+          "description": "The AgentRole handling this task"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["PENDING", "IN_PROGRESS", "COMPLETED", "FAILED"],
+          "description": "Execution status"
+        },
+        "output": {
+          "type": "string",
+          "description": "Result of the agent's execution"
+        },
+        "dependencies": {
+          "type": "array",
+          "description": "List of task IDs that must be completed first"
+        },
+        "createdAt": {
+          "type": "number",
+          "description": "Timestamp of creation"
+        },
+        "completedAt": {
+          "type": "number",
+          "description": "Timestamp of completion"
+        }
+      },
+      "required": ["title", "description", "assignedTo", "status", "createdAt"]
+    },
+    "OperationLog": {
+      "title": "Operation Log",
+      "description": "Audit trail log for agent coordination",
+      "type": "object",
+      "properties": {
+        "timestamp": {
+          "type": "number",
+          "description": "Log timestamp"
+        },
+        "sender": {
+          "type": "string",
+          "description": "AgentRole or SYSTEM"
+        },
+        "message": {
+          "type": "string",
+          "description": "The log message"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["COMMUNICATION", "ACTION", "INSIGHT", "SYSTEM"],
+          "description": "Categories of log messages"
+        }
+      },
+      "required": ["timestamp", "sender", "message", "type"]
+    }
+  },
+  "firestore": {
+    "/goals": {
+      "schema": "BusinessGoal",
+      "description": "Root collection for business objectives"
+    },
+    "/goals/{goalId}/tasks": {
+      "schema": "Task",
+      "description": "Sub-collection of tasks for a goal"
+    },
+    "/goals/{goalId}/logs": {
+      "schema": "OperationLog",
+      "description": "Sub-collection of logs for a goal"
+    }
+  }
+}

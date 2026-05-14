@@ -1,0 +1,85 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helpers ---
+    function isSignedIn() { return request.auth != null; }
+    function isOwner(res) { return isSignedIn() && res.data.createdBy == request.auth.uid; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+
+    // --- Validation Blueprints ---
+    function isValidBusinessGoal(data) {
+      return data.description is string && data.description.size() <= 1000
+          && data.status in ['ACTIVE', 'ACHIEVED', 'FAILED']
+          && data.createdAt is number
+          && data.createdBy == request.auth.uid;
+    }
+
+    function isValidTask(data) {
+      return data.title is string && data.title.size() <= 200
+          && data.description is string && data.description.size() <= 2000
+          && data.assignedTo is string
+          && data.status in ['PENDING', 'IN_PROGRESS', 'COMPLETED', 'FAILED']
+          && data.createdAt is number;
+    }
+
+    function isValidLog(data) {
+      return data.timestamp is number
+          && data.sender is string
+          && data.message is string && data.message.size() <= 2000
+          && data.type in ['COMMUNICATION', 'ACTION', 'INSIGHT', 'SYSTEM'];
+    }
+
+    // --- Core Logic ---
+
+    match /goals/{goalId} {
+      // Access Logic: Users can only see their own strategic goals
+      allow get: if isSignedIn() && isOwner(resource);
+      allow list: if isSignedIn() && resource.data.createdBy == request.auth.uid;
+      
+      allow create: if isSignedIn() 
+                    && isValidId(goalId) 
+                    && isValidBusinessGoal(incoming())
+                    && incoming().keys().hasAll(['description', 'status', 'createdAt', 'createdBy'])
+                    && incoming().keys().size() >= 4;
+
+      allow update: if isSignedIn() 
+                    && isOwner(resource)
+                    && (
+                      // Action: Status Update or KPI refresh
+                      (incoming().diff(existing()).affectedKeys().hasAny(['kpis', 'status']) && isValidBusinessGoal(incoming()))
+                    );
+
+      // Sub-collections: Protected by the Goal's ownership
+      match /tasks/{taskId} {
+        allow read: if isSignedIn() && get(/databases/$(database)/documents/goals/$(goalId)).data.createdBy == request.auth.uid;
+        
+        allow create: if isSignedIn() 
+                      && isValidId(taskId)
+                      && get(/databases/$(database)/documents/goals/$(goalId)).data.createdBy == request.auth.uid
+                      && isValidTask(incoming());
+
+        allow update: if isSignedIn()
+                      && get(/databases/$(database)/documents/goals/$(goalId)).data.createdBy == request.auth.uid
+                      && (
+                        // State transition
+                        (incoming().diff(existing()).affectedKeys().hasAny(['status', 'output', 'completedAt']) && isValidTask(incoming()))
+                      );
+      }
+
+      match /logs/{logId} {
+        allow read: if isSignedIn() && get(/databases/$(database)/documents/goals/$(goalId)).data.createdBy == request.auth.uid;
+        allow create: if isSignedIn()
+                      && isValidId(logId)
+                      && get(/databases/$(database)/documents/goals/$(goalId)).data.createdBy == request.auth.uid
+                      && isValidLog(incoming());
+      }
+    }
+  }
+}
